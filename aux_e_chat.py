@@ -74,7 +74,7 @@ class AuxEChat(telepot.helper.ChatHandler):
             logging.info("{}'s user_flag changed ,now its :{} .".format(i['new_user'], 'False'))
 
         if len(users_list) >= 2:
-            bot.sendMessage(chat_id=chat_id[0], text="Welcome " + ', '.join(users_list) + "to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.", parse_mode='Markdown')
+            bot.sendMessage(chat_id=chat_id[0], text="Welcome " + ', '.join(users_list) + " to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.", parse_mode='Markdown')
             logging.info("Message Sent to UserList {} !".format(users_list))
         elif len(users_list) == 1:
             bot.sendMessage(chat_id=chat_id[0], text="Welcome {} to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.".format(users_list[0]), parse_mode='Markdown')
