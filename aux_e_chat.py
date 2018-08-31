@@ -16,12 +16,13 @@ from db_folder import db_config
 db_client_connection = db_config.mongo_connection()
 db_name = db_client_connection['auxesis_chatbot_db']
 db_updates_collection = db_name['new_users_table']
+db_message_collection = db_name['new_msg_table']
 
 config = ConfigParser.ConfigParser()
 config.read('config.ini')
 
 TOKEN = config.get('General', 'api_key')
-administrators = list(map(int, config.get('General', 'admins').split(',')))
+group_id = list(map(int, config.get('General', 'group_id').split(',')))
 sched = Scheduler()
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -37,7 +38,7 @@ class AuxEChat(telepot.helper.ChatHandler):
         if content_type == "new_chat_member":
             user_name = '@{}'.format(msg['new_chat_participant']['first_name'])
             if len(user_name) > 3:
-                if msg['new_chat_participant']['is_bot'] is True & msg['new_chat_participant']['id'] not in administrators:
+                if msg['new_chat_participant']['is_bot'] is True & msg['new_chat_participant']['id'] not in group_id:
                     self.bot.kickChatMember(msg['chat']['id'], msg['new_chat_participant']['id'])
                     logging.info("User {} (ID: {}) Kicked Out of the Group! Hooray!".format(user_name, msg['new_chat_participant']['id']))
                 else:
@@ -59,29 +60,30 @@ class AuxEChat(telepot.helper.ChatHandler):
                 self.bot.kickChatMember(msg['chat']['id'], msg['new_chat_participant']['id'])
                 logging.info("User {} (ID: {}) Kicked Out of the Group! Hooray!".format(user_name, msg['new_chat_participant']['id']))
 
+
     @sched.interval_schedule(seconds=60)
     def _sent_message():
 
         new_users_list = list(db_updates_collection.find({"user_flag": True}, {"date": 1, "new_user": 1, "chat_id":1, "user_flag":1, "_id": 0}))
-
-        chat_id = [d["chat_id"] for d in new_users_list if d["chat_id"] in administrators ]
+        print new_users_list
+        chat_id = [d["chat_id"] for d in new_users_list if d["chat_id"] in group_id ]
         print chat_id
         users_list = [d["new_user"] for d in new_users_list]
         print users_list
-
-        for i in new_users_list:
-            db_updates_collection.find_one_and_update({'new_user': i["new_user"], 'chat_id': i["chat_id"]}, {'$set': {'user_flag': False}})
-            logging.info("{}'s user_flag changed ,now its :{} .".format(i['new_user'], 'False'))
 
         if len(users_list) >= 2:
             bot.sendMessage(chat_id=chat_id[0], text="Welcome " + ', '.join(users_list) + " to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.", parse_mode='Markdown')
             logging.info("Message Sent to UserList {} !".format(users_list))
         elif len(users_list) == 1:
-            bot.sendMessage(chat_id=chat_id[0], text="Welcome {} to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.".format(users_list[0]), parse_mode='Markdown')
+            bot.sendMessage(chat_id=chat_id[0], text="Welcome {} to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.".format(users_list), parse_mode='Markdown')
             logging.info("Message Sent to User {} !".format(users_list))
         else:
             time.sleep(10)
             pass
+
+        for i in new_users_list:
+            db_updates_collection.find_one_and_update({'new_user': i["new_user"], 'chat_id': i["chat_id"]}, {'$set': {'user_flag': False}})
+            logging.info("{}'s user_flag changed ,now its :{} ,".format(i['new_user'], 'False'))
 
 
 bot = telepot.DelegatorBot(TOKEN, [
