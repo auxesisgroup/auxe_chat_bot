@@ -92,7 +92,6 @@ bot = telepot.DelegatorBot(TOKEN, [
 
 def main():
     MessageLoop(bot).run_as_thread()
-    logging.info("Bot started.")
     sched.start()
     while 1:
         time.sleep(15)
