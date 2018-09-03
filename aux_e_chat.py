@@ -2,7 +2,6 @@ import time
 
 import telepot
 import ConfigParser
-import logging
 
 from telepot.loop import MessageLoop
 from telepot.delegate import (
@@ -25,9 +24,6 @@ TOKEN = config.get('General', 'api_key')
 group_id = list(map(int, config.get('General', 'group_id').split(',')))
 sched = Scheduler()
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    filename='log.log', level=logging.INFO)
-
 
 class AuxEChat(telepot.helper.ChatHandler):
     def __init__(self, *args, **kwargs):
@@ -40,7 +36,6 @@ class AuxEChat(telepot.helper.ChatHandler):
             if len(user_name) > 3:
                 if msg['new_chat_participant']['is_bot'] is True & msg['new_chat_participant']['id'] not in group_id:
                     self.bot.kickChatMember(msg['chat']['id'], msg['new_chat_participant']['id'])
-                    logging.info("User {} (ID: {}) Kicked Out of the Group! Hooray!".format(user_name, msg['new_chat_participant']['id']))
                 else:
                     new_user_name = msg['new_chat_participant']['first_name']
                     new_user = new_user_name.title()
@@ -54,12 +49,9 @@ class AuxEChat(telepot.helper.ChatHandler):
                             "user_flag": True
                         }
                     )
-                    logging.info("{} has joined with {} chat id to {} group .".format(user_name, msg['chat']['id'], msg['chat']['title']))
 
             else:
                 self.bot.kickChatMember(msg['chat']['id'], msg['new_chat_participant']['id'])
-                logging.info("User {} (ID: {}) Kicked Out of the Group! Hooray!".format(user_name, msg['new_chat_participant']['id']))
-
 
     @sched.interval_schedule(seconds=60)
     def _sent_message():
@@ -73,17 +65,22 @@ class AuxEChat(telepot.helper.ChatHandler):
 
         if len(users_list) >= 2:
             bot.sendMessage(chat_id=chat_id[0], text="Welcome " + ', '.join(users_list) + " to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.", parse_mode='Markdown')
-            logging.info("Message Sent to UserList {} !".format(users_list))
         elif len(users_list) == 1:
             bot.sendMessage(chat_id=chat_id[0], text="Welcome {} to Auxledger community. Have you checked out our [website](https://auxledger.org/) and got yourself whitelisted? Do check out the pinned message to get continuous updates.".format(users_list), parse_mode='Markdown')
-            logging.info("Message Sent to User {} !".format(users_list))
         else:
             time.sleep(10)
             pass
 
         for i in new_users_list:
             db_updates_collection.find_one_and_update({'new_user': i["new_user"], 'chat_id': i["chat_id"]}, {'$set': {'user_flag': False}})
-            logging.info("{}'s user_flag changed ,now its :{} ,".format(i['new_user'], 'False'))
+
+    @sched.interval_schedule(seconds=300)
+    def _sent_thanks_message():
+        date_list = list(db_message_collection.find({'msg_flag': True}, {'date': 1, "message_id": 1, 'chat_id': 1, 'msg_flag': 1, "_id": 0}))
+        chat_id = date_list[-1]['chat_id']
+        bot.sendMessage(chat_id=chat_id, text="Thanks for your query, our admins will respond back soon. In mean time, please do check out [FAQ](https://auxledger.org/#faq) section on our homepage.", reply_to_message_id=date_list[-1]['message_id'], parse_mode='Markdown')
+        db_message_collection.find_one_and_update({'chat_id': chat_id, 'message_id': date_list[-1]['message_id']},
+                                                  {'$set': {'msg_flag': False}})
 
 
 bot = telepot.DelegatorBot(TOKEN, [
