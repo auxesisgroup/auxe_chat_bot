@@ -53,6 +53,30 @@ class AuxEChat(telepot.helper.ChatHandler):
             else:
                 self.bot.kickChatMember(msg['chat']['id'], msg['new_chat_participant']['id'])
 
+        if content_type == "text" :
+
+            db_message_collection.insert_one(
+                {
+                    'sender': msg['from']['first_name'],
+                    'chat_id': msg['chat']['id'],
+                    'message': msg['text'],
+                    'message_id': msg['message_id'],
+                    'date': msg['date'],
+                    'group': msg['chat']['title'],
+                    "msg_flag": True,
+
+                }
+            )
+            sentence = msg['text'].lower()
+            if not sentence.startswith(('wh', 'how')) | sentence.endswith(('?')):
+                if msg['reply_to_message']:
+                    db_message_collection.find_one_and_update(
+                        {'chat_id': chat_id, 'message_id': msg['reply_to_message']['message_id']},
+                        {'$set': {'msg_flag': False}})
+                else:
+                    db_message_collection.find_one_and_update({'chat_id': chat_id, 'message_id': msg['message_id']},
+                                                              {'$set': {'msg_flag': False}})
+
     @sched.interval_schedule(seconds=60)
     def _sent_message():
 
@@ -76,11 +100,15 @@ class AuxEChat(telepot.helper.ChatHandler):
 
     @sched.interval_schedule(seconds=300)
     def _sent_thanks_message():
-        date_list = list(db_message_collection.find({'msg_flag': True}, {'date': 1, "message_id": 1, 'chat_id': 1, 'msg_flag': 1, "_id": 0}))
-        chat_id = date_list[-1]['chat_id']
-        bot.sendMessage(chat_id=chat_id, text="Thanks for your query, our admins will respond back soon. In mean time, please do check out [FAQ](https://auxledger.org/#faq) section on our homepage.", reply_to_message_id=date_list[-1]['message_id'], parse_mode='Markdown')
-        db_message_collection.find_one_and_update({'chat_id': chat_id, 'message_id': date_list[-1]['message_id']},
-                                                  {'$set': {'msg_flag': False}})
+        date_list = list(db_message_collection.find({'msg_flag': True}, {'message': 1, 'date': 1, "message_id": 1, 'chat_id': 1, 'msg_flag': 1, "_id": 0}))
+        for i in date_list:
+            if i['message'].lower().startswith(('wh', 'how')) | i['message'].lower().endswith(('?')):
+                chat_id = i['chat_id']
+                bot.sendMessage(chat_id=chat_id, text="Thanks for your query, our admins will respond back soon. In mean time, please do check out [FAQ](https://auxledger.org/#faq) section on our homepage.", reply_to_message_id=i['message_id'], parse_mode='Markdown')
+                db_message_collection.find_one_and_update({'chat_id': chat_id, 'message_id': i['message_id']}, {'$set': {'msg_flag': False}})
+                time.sleep(120)
+            else:
+                pass
 
 
 bot = telepot.DelegatorBot(TOKEN, [
